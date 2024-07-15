@@ -18,6 +18,10 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         KeyCode::Char('s') => {
             app.toggle();
         }
+        // Reset lifegame
+        KeyCode::Char('r') => {
+            app.reset();
+        }
         // Other handlers you could add here.
         _ => {}
     }

@@ -16,6 +16,7 @@ pub enum AppState {
 /// Application.
 #[derive(Debug)]
 pub struct App {
+    pub alive_prob: f64,
     pub gen: u64,
     pub state: AppState,
     pub nx: usize,
@@ -41,6 +42,7 @@ impl Default for App {
         let cells = random_cells(nx, ny, alive_prob);
         let world = World::new(nx, ny, cells);
         Self {
+            alive_prob,
             gen: 0,
             state: AppState::Pause,
             nx,
@@ -56,6 +58,10 @@ impl App {
         Self::default()
     }
 
+    pub fn can_reset(&self) -> bool {
+        self.state == AppState::Pause
+    }
+
     /// Handles the tick event of the terminal.
     pub fn tick(&mut self) {
         if self.state == AppState::Run {
@@ -64,12 +70,22 @@ impl App {
         }
     }
 
+    /// Run/pause lifegame
     pub fn toggle(&mut self) {
         match self.state {
             AppState::Pause => self.state = AppState::Run,
             AppState::Run => self.state = AppState::Pause,
             _ => (),
         };
+    }
+
+    /// Reset lifegame
+    pub fn reset(&mut self) {
+        if self.can_reset() {
+            let cells = random_cells(self.nx, self.ny, self.alive_prob);
+            self.world = World::new(self.nx, self.ny, cells);
+            self.gen = 0;
+        }
     }
 
     /// Set running to false to quit the application.

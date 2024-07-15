@@ -19,13 +19,14 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .split(frame.size());
     frame.render_widget(
         Block::default().title(format!(
-            "Lifegame (gen={}) [{}] [<q>: quit]",
+            "Lifegame (gen={}) {}{}[<q>: quit]",
             app.gen,
             if app.state == AppState::Pause {
-                "<s>: start"
+                "[<s>: start] "
             } else {
-                "<s>: pause"
-            }
+                "[<s>: pause ]"
+            },
+            if app.can_reset() { "[<r>: reset] " } else { "" }
         )),
         layout[0],
     );
@@ -51,8 +52,8 @@ impl<'a> TableWorld<'a> {
             let mut row: Vec<String> = Vec::with_capacity(app.nx);
             for icol in 0..app.nx {
                 row.push(match app.world.cell(icol, irow) {
-                    lifegame_core::Cell::Alive => "■".to_string(),
-                    lifegame_core::Cell::Dead => "□".to_string(),
+                    lifegame_core::Cell::Alive => "█".to_string(),
+                    lifegame_core::Cell::Dead => " ".to_string(),
                 });
             }
             rows.push(Row::new(row));
