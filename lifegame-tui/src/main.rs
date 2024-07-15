@@ -1,10 +1,10 @@
-use lifegame_tui::app::{App, AppResult};
+use lifegame_tui::app::{App, AppResult, AppState};
 use lifegame_tui::event::{Event, EventHandler};
 use lifegame_tui::handler::handle_key_events;
 use lifegame_tui::tui::Tui;
-use std::io;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use std::io;
 
 fn main() -> AppResult<()> {
     // Create an application.
@@ -18,7 +18,7 @@ fn main() -> AppResult<()> {
     tui.init()?;
 
     // Start the main loop.
-    while app.running {
+    while app.state != AppState::Quit {
         // Render the user interface.
         tui.draw(&mut app)?;
         // Handle events.

@@ -1,11 +1,11 @@
 use ratatui::{
-    layout::Constraint,
+    layout::{Constraint, Direction, Layout},
     style::{Style, Stylize},
     widgets::{Block, Row, Table, Widget},
     Frame,
 };
 
-use crate::app::App;
+use crate::app::{App, AppState};
 
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
@@ -13,7 +13,23 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     // See the following resources:
     // - https://docs.rs/ratatui/latest/ratatui/widgets/index.html
     // - https://github.com/ratatui-org/ratatui/tree/master/examples
-    frame.render_widget(TableWorld::new(app), frame.size())
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Max(1), Constraint::Min(1)])
+        .split(frame.size());
+    frame.render_widget(
+        Block::default().title(format!(
+            "Lifegame (gen={}) [{}] [<q>: quit]",
+            app.gen,
+            if app.state == AppState::Pause {
+                "<s>: start"
+            } else {
+                "<s>: pause"
+            }
+        )),
+        layout[0],
+    );
+    frame.render_widget(TableWorld::new(app), layout[1]);
 }
 
 struct TableWorld<'a> {
@@ -61,7 +77,6 @@ impl Widget for TableWorld<'_> {
         Table::new(self.rows, self.widths)
             .column_spacing(0)
             .style(Style::new().blue())
-            .block(Block::new().title("Lifegame"))
             .render(area, buf);
     }
 }
