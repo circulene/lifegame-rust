@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Style, Stylize},
-    widgets::{Block, Row, Table, Widget},
+    style::{Color, Style},
+    widgets::{Block, Cell, Row, Table, Widget},
     Frame,
 };
 
@@ -24,7 +24,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             if app.state == AppState::Pause {
                 "[<s>: start] "
             } else {
-                "[<s>: pause ]"
+                "[<s>: pause] "
             },
             if app.can_reset() { "[<r>: reset] " } else { "" }
         )),
@@ -49,11 +49,13 @@ impl<'a> TableWorld<'a> {
     fn make_rows(app: &App) -> Vec<Row> {
         let mut rows: Vec<Row> = Vec::with_capacity(app.ny);
         for irow in 0..app.ny {
-            let mut row: Vec<String> = Vec::with_capacity(app.nx);
+            let mut row: Vec<_> = Vec::with_capacity(app.nx);
             for icol in 0..app.nx {
                 row.push(match app.world.cell(icol, irow) {
-                    lifegame_core::Cell::Alive => "█".to_string(),
-                    lifegame_core::Cell::Dead => " ".to_string(),
+                    lifegame_core::Cell::Alive => {
+                        Cell::from(" ").style(Style::default().bg(Color::Blue))
+                    }
+                    lifegame_core::Cell::Dead => Cell::from(" ").style(Style::default()),
                 });
             }
             rows.push(Row::new(row));
@@ -77,7 +79,6 @@ impl Widget for TableWorld<'_> {
     {
         Table::new(self.rows, self.widths)
             .column_spacing(0)
-            .style(Style::new().blue())
             .render(area, buf);
     }
 }
