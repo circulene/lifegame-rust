@@ -6,4 +6,6 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
+lifegame-core = { path = "../lifegame-core" }
+rand = "0.8.5"
 ratatui = "0.27.0"

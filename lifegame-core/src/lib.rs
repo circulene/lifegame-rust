@@ -8,6 +8,7 @@ pub enum Cell {
     Alive,
 }
 
+#[derive(Debug)]
 pub struct World {
     nx: usize,
     ny: usize,
