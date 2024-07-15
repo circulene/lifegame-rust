@@ -1,0 +1,4 @@
+[workspace]
+
+members = ["lifegame-core", "lifegame-tui"]
+resolver = "2"
