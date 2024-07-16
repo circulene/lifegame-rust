@@ -1,3 +1,4 @@
+use lifegame_core::{CELL_ALIVE, CELL_DEAD};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -52,10 +53,8 @@ impl<'a> TableWorld<'a> {
             let mut row: Vec<_> = Vec::with_capacity(app.nx);
             for icol in 0..app.nx {
                 row.push(match app.world.cell(icol, irow) {
-                    lifegame_core::Cell::Alive => {
-                        Cell::from(" ").style(Style::default().bg(Color::Blue))
-                    }
-                    lifegame_core::Cell::Dead => Cell::from(" ").style(Style::default()),
+                    CELL_ALIVE => Cell::from(" ").style(Style::default().bg(Color::Blue)),
+                    CELL_DEAD => Cell::from(" ").style(Style::default()),
                 });
             }
             rows.push(Row::new(row));

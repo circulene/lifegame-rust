@@ -1,6 +1,6 @@
 use std::error;
 
-use lifegame_core::{Cell, World};
+use lifegame_core::{Cell, World, CELL_ALIVE, CELL_DEAD};
 use rand::Rng;
 
 /// Application result type.
@@ -29,8 +29,8 @@ fn random_cells(nx: usize, ny: usize, alive_prob: f64) -> Vec<Cell> {
     let size = nx * ny;
     (0..size)
         .map(|_| match rng.gen_bool(alive_prob) {
-            true => Cell::Alive,
-            false => Cell::Dead,
+            true => CELL_ALIVE,
+            false => CELL_DEAD,
         })
         .collect::<Vec<_>>()
 }

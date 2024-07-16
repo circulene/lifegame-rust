@@ -1,12 +1,8 @@
 use std::cmp::Ordering;
 
-use crate::Cell::{Alive, Dead};
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Cell {
-    Dead,
-    Alive,
-}
+pub type Cell = bool;
+pub const CELL_DEAD: bool = false;
+pub const CELL_ALIVE: bool = true;
 
 #[derive(Debug)]
 pub struct World {
@@ -22,7 +18,7 @@ impl World {
         let resized_cells = match cells.len().cmp(&size) {
             Ordering::Less => {
                 let num_fills = size - cells.len();
-                let fills = vec![Dead; num_fills];
+                let fills = vec![CELL_DEAD; num_fills];
                 [cells, fills].concat()
             }
             Ordering::Greater => cells[0..size].to_vec(),
@@ -35,8 +31,8 @@ impl World {
         }
     }
 
-    pub fn cell(&self, ix: usize, iy: usize) -> &Cell {
-        &self.cells[iy * self.nx + ix]
+    pub fn cell(&self, ix: usize, iy: usize) -> Cell {
+        self.cells[iy * self.nx + ix]
     }
 
     pub fn next(&mut self) {
@@ -47,27 +43,27 @@ impl World {
                 let num_alive_neighbours = self
                     .neighbours(ix, iy)
                     .iter()
-                    .filter(|cell| cell == &&&Alive)
+                    .filter(|cell| cell == &&CELL_ALIVE)
                     .count();
                 let next = match cell {
-                    Dead => {
+                    CELL_DEAD => {
                         if num_alive_neighbours == 3 {
                             // born
-                            Alive
+                            CELL_ALIVE
                         } else {
-                            Dead
+                            CELL_DEAD
                         }
                     }
-                    Alive => {
+                    CELL_ALIVE => {
                         if num_alive_neighbours <= 1 {
                             // underpopulated
-                            Dead
+                            CELL_DEAD
                         } else if num_alive_neighbours == 2 || num_alive_neighbours == 3 {
-                            // preserved
-                            Alive
+                            // survive
+                            CELL_ALIVE
                         } else {
                             // overpopulated
-                            Dead
+                            CELL_DEAD
                         }
                     }
                 };
@@ -77,10 +73,10 @@ impl World {
         self.cells = next_cells;
     }
 
-    fn neighbours(&self, ix: usize, iy: usize) -> Vec<&Cell> {
+    fn neighbours(&self, ix: usize, iy: usize) -> Vec<Cell> {
         let get_cell = |ix, iy| {
             if ix < 0 || iy < 0 || ix as usize >= self.nx || iy as usize >= self.ny {
-                &Dead
+                CELL_DEAD
             } else {
                 self.cell(ix as usize, iy as usize)
             }
@@ -105,19 +101,21 @@ impl World {
 
 #[cfg(test)]
 mod tests {
-    use super::Cell::{Alive, Dead};
     use super::*;
 
     #[test]
     fn test_world_new() {
-        let space = World::new(2, 2, vec![Alive]);
-        assert_eq!(space.cells(), &vec![Alive, Dead, Dead, Dead]);
+        let space = World::new(2, 2, vec![CELL_ALIVE]);
+        assert_eq!(
+            space.cells(),
+            &vec![CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]
+        );
 
-        let space = World::new(2, 2, vec![Alive; 5]);
-        assert_eq!(space.cells(), &vec![Alive; 4]);
+        let space = World::new(2, 2, vec![CELL_ALIVE; 5]);
+        assert_eq!(space.cells(), &vec![CELL_ALIVE; 4]);
 
-        let space = World::new(2, 2, vec![Alive; 4]);
-        assert_eq!(space.cells(), &vec![Alive; 4]);
+        let space = World::new(2, 2, vec![CELL_ALIVE; 4]);
+        assert_eq!(space.cells(), &vec![CELL_ALIVE; 4]);
     }
 
     #[test]
@@ -126,9 +124,9 @@ mod tests {
             3,
             3,
             [
-                [Alive, Alive, Dead],
-                [Alive, Dead, Dead],
-                [Dead, Dead, Dead],
+                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_ALIVE, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
         );
@@ -136,24 +134,24 @@ mod tests {
         assert_eq!(
             space.cells(),
             &[
-                [Alive, Alive, Dead],
-                [Alive, Alive, Dead],
-                [Dead, Dead, Dead]
+                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD]
             ]
             .concat()
         );
     }
 
     #[test]
-    fn rule_preserved() {
+    fn rule_survive() {
         let mut space = World::new(
             4,
             4,
             [
-                [Dead, Dead, Dead, Dead],
-                [Dead, Alive, Alive, Dead],
-                [Dead, Alive, Alive, Dead],
-                [Dead, Dead, Dead, Dead],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
         );
@@ -161,10 +159,10 @@ mod tests {
         assert_eq!(
             space.cells(),
             &[
-                [Dead, Dead, Dead, Dead],
-                [Dead, Alive, Alive, Dead],
-                [Dead, Alive, Alive, Dead],
-                [Dead, Dead, Dead, Dead],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat()
         );
@@ -175,12 +173,22 @@ mod tests {
         let mut space = World::new(
             3,
             3,
-            [[Dead, Dead, Dead], [Dead, Alive, Alive], [Dead, Dead, Dead]].concat(),
+            [
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+            ]
+            .concat(),
         );
         space.next();
         assert_eq!(
             space.cells(),
-            &[[Dead, Dead, Dead], [Dead, Dead, Dead], [Dead, Dead, Dead]].concat()
+            &[
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD]
+            ]
+            .concat()
         );
     }
 
@@ -190,9 +198,9 @@ mod tests {
             3,
             3,
             [
-                [Alive, Alive, Alive],
-                [Alive, Alive, Dead],
-                [Dead, Dead, Dead],
+                [CELL_ALIVE, CELL_ALIVE, CELL_ALIVE],
+                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
         );
@@ -200,9 +208,9 @@ mod tests {
         assert_eq!(
             space.cells(),
             &[
-                [Alive, Dead, Alive],
-                [Alive, Dead, Alive],
-                [Dead, Dead, Dead],
+                [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
+                [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
+                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat()
         );
