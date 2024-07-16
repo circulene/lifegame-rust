@@ -1,4 +1,5 @@
-use std::cmp::Ordering;
+use anyhow::{Error, Result};
+use bit_vec::BitVec;
 
 pub type Cell = bool;
 pub const CELL_DEAD: bool = false;
@@ -8,43 +9,36 @@ pub const CELL_ALIVE: bool = true;
 pub struct World {
     nx: usize,
     ny: usize,
-    cells: Vec<Cell>,
+    cells: BitVec,
 }
 
 impl World {
     /// Create a new world
-    pub fn new(nx: usize, ny: usize, cells: Vec<Cell>) -> World {
-        let size = nx * ny;
-        let resized_cells = match cells.len().cmp(&size) {
-            Ordering::Less => {
-                let num_fills = size - cells.len();
-                let fills = vec![CELL_DEAD; num_fills];
-                [cells, fills].concat()
-            }
-            Ordering::Greater => cells[0..size].to_vec(),
-            Ordering::Equal => cells,
-        };
-        World {
+    pub fn new(nx: usize, ny: usize, cells: Vec<Cell>) -> Result<World> {
+        if cells.len() != nx * ny {
+            return Err(Error::msg("invalid cell size."));
+        }
+        Ok(World {
             nx,
             ny,
-            cells: resized_cells,
-        }
+            cells: to_bitvec(&cells),
+        })
+    }
+
+    fn bit_index(&self, ix: usize, iy: usize) -> usize {
+        iy * self.nx + ix
     }
 
     pub fn cell(&self, ix: usize, iy: usize) -> Cell {
-        self.cells[iy * self.nx + ix]
+        self.cells[self.bit_index(ix, iy)]
     }
 
     pub fn next(&mut self) {
-        let mut next_cells = Vec::with_capacity(self.cells.len());
+        let mut next_cells = BitVec::from_elem(self.cells.len(), false);
         for iy in 0..self.ny {
             for ix in 0..self.nx {
                 let cell = self.cell(ix, iy);
-                let num_alive_neighbours = self
-                    .neighbours(ix, iy)
-                    .iter()
-                    .filter(|cell| cell == &&CELL_ALIVE)
-                    .count();
+                let num_alive_neighbours = self.neighbours(ix, iy).iter().filter(|x| *x).count();
                 let next = match cell {
                     CELL_DEAD => {
                         if num_alive_neighbours == 3 {
@@ -67,13 +61,13 @@ impl World {
                         }
                     }
                 };
-                next_cells.push(next);
+                next_cells.set(self.bit_index(ix, iy), next);
             }
         }
         self.cells = next_cells;
     }
 
-    fn neighbours(&self, ix: usize, iy: usize) -> Vec<Cell> {
+    fn neighbours(&self, ix: usize, iy: usize) -> BitVec {
         let get_cell = |ix, iy| {
             if ix < 0 || iy < 0 || ix as usize >= self.nx || iy as usize >= self.ny {
                 CELL_DEAD
@@ -82,7 +76,7 @@ impl World {
             }
         };
         let (ix, iy) = (ix as isize, iy as isize);
-        vec![
+        let bitmap: BitVec = to_bitvec(&[
             get_cell(ix - 1, iy - 1),
             get_cell(ix - 1, iy),
             get_cell(ix - 1, iy + 1),
@@ -91,12 +85,17 @@ impl World {
             get_cell(ix + 1, iy - 1),
             get_cell(ix + 1, iy),
             get_cell(ix + 1, iy + 1),
-        ]
+        ]);
+        bitmap
     }
+}
 
-    pub fn cells(&self) -> &Vec<Cell> {
-        &self.cells
+fn to_bitvec(bits: &[bool]) -> BitVec {
+    let mut bitvec = BitVec::from_elem(bits.len(), false);
+    for (i, bit) in bits.iter().enumerate() {
+        bitvec.set(i, *bit);
     }
+    bitvec
 }
 
 #[cfg(test)]
@@ -106,16 +105,17 @@ mod tests {
     #[test]
     fn test_world_new() {
         let space = World::new(2, 2, vec![CELL_ALIVE]);
-        assert_eq!(
-            space.cells(),
-            &vec![CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]
-        );
+        assert!(space.is_err());
 
         let space = World::new(2, 2, vec![CELL_ALIVE; 5]);
-        assert_eq!(space.cells(), &vec![CELL_ALIVE; 4]);
+        assert!(space.is_err());
 
-        let space = World::new(2, 2, vec![CELL_ALIVE; 4]);
-        assert_eq!(space.cells(), &vec![CELL_ALIVE; 4]);
+        let space = World::new(2, 2, vec![CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]);
+        assert!(space.is_ok());
+        assert_eq!(
+            &space.unwrap().cells,
+            &to_bitvec(&[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD])
+        );
     }
 
     #[test]
@@ -129,16 +129,19 @@ mod tests {
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
-        );
+        )
+        .unwrap();
         space.next();
         assert_eq!(
-            space.cells(),
-            &[
-                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD]
-            ]
-            .concat()
+            &space.cells,
+            &to_bitvec(
+                &[
+                    [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD]
+                ]
+                .concat()
+            )
         );
     }
 
@@ -154,17 +157,20 @@ mod tests {
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
-        );
+        )
+        .unwrap();
         space.next();
         assert_eq!(
-            space.cells(),
-            &[
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat()
+            &space.cells,
+            &to_bitvec(
+                &[
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat()
+            )
         );
     }
 
@@ -179,16 +185,19 @@ mod tests {
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
-        );
+        )
+        .unwrap();
         space.next();
         assert_eq!(
-            space.cells(),
-            &[
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD]
-            ]
-            .concat()
+            &space.cells,
+            &to_bitvec(
+                &[
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD]
+                ]
+                .concat()
+            )
         );
     }
 
@@ -203,16 +212,19 @@ mod tests {
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
             ]
             .concat(),
-        );
+        )
+        .unwrap();
         space.next();
         assert_eq!(
-            space.cells(),
-            &[
-                [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
-                [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat()
+            &space.cells,
+            &to_bitvec(
+                &[
+                    [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
+                    [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat()
+            )
         );
     }
 }

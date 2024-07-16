@@ -20,7 +20,7 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         }
         // Reset lifegame
         KeyCode::Char('r') => {
-            app.reset();
+            app.reset()?;
         }
         // Other handlers you could add here.
         _ => {}
