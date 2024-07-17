@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use lifegame_core::{CELL_ALIVE, CELL_DEAD};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -18,6 +20,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Max(1), Constraint::Min(1)])
         .split(frame.size());
+    let (description, world) = (layout[0], layout[1]);
     frame.render_widget(
         Block::default().title(format!(
             "Lifegame (gen={}) {}{}[<q>: quit]",
@@ -29,30 +32,41 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             },
             if app.can_reset() { "[<r>: reset] " } else { "" }
         )),
-        layout[0],
+        description,
     );
-    frame.render_widget(TableWorld::new(app), layout[1]);
+    frame.render_widget(TableWorld::new(app, world.width, world.height), world);
 }
 
 struct TableWorld<'a> {
-    rows: Vec<Row<'a>>,
-    widths: Vec<Constraint>,
+    /// application status
+    app: &'a App,
+    /// area width
+    width: u16,
+    /// area height
+    height: u16,
+    /// world window offset
+    ix_offset: usize,
+    /// world window offset
+    iy_offset: usize,
 }
 
 impl<'a> TableWorld<'a> {
-    fn new(app: &'a App) -> Self {
+    fn new(app: &'a App, width: u16, height: u16) -> Self {
         Self {
-            rows: Self::make_rows(app),
-            widths: Self::make_widths(app),
+            app,
+            width,
+            height,
+            ix_offset: 0,
+            iy_offset: 0,
         }
     }
 
-    fn make_rows(app: &App) -> Vec<Row> {
-        let mut rows: Vec<Row> = Vec::with_capacity(app.ny);
-        for irow in 0..app.ny {
-            let mut row: Vec<_> = Vec::with_capacity(app.nx);
-            for icol in 0..app.nx {
-                row.push(match app.world.cell(icol, irow) {
+    fn make_rows(&self) -> Vec<Row> {
+        let mut rows: Vec<Row> = Vec::with_capacity(self.height as usize);
+        for iy in self.iy_offset..min(self.app.ny, self.iy_offset + self.height as usize) {
+            let mut row: Vec<_> = Vec::with_capacity(self.width as usize);
+            for ix in self.ix_offset..min(self.app.nx, self.ix_offset + self.width as usize) {
+                row.push(match self.app.world.cell(ix, iy) {
                     CELL_ALIVE => Cell::from(" ").style(Style::default().bg(Color::Blue)),
                     CELL_DEAD => Cell::from(" ").style(Style::default()),
                 });
@@ -62,9 +76,9 @@ impl<'a> TableWorld<'a> {
         rows
     }
 
-    fn make_widths(app: &App) -> Vec<Constraint> {
-        let mut widths = Vec::with_capacity(app.nx);
-        for _ in 0..app.nx {
+    fn make_widths(&self) -> Vec<Constraint> {
+        let mut widths = Vec::with_capacity(self.width as usize);
+        for _ in 0..self.width {
             widths.push(Constraint::Length(1));
         }
         widths
@@ -76,7 +90,7 @@ impl Widget for TableWorld<'_> {
     where
         Self: Sized,
     {
-        Table::new(self.rows, self.widths)
+        Table::new(self.make_rows(), self.make_widths())
             .column_spacing(0)
             .render(area, buf);
     }
