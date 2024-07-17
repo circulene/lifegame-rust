@@ -30,7 +30,11 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             } else {
                 "[<s>: pause] "
             },
-            if app.can_reset() { "[<r>: reset] " } else { "" }
+            if app.can_reset() {
+                "[<left><up><down><right>: pan] [<r>: reset] "
+            } else {
+                ""
+            }
         )),
         description,
     );
@@ -44,28 +48,22 @@ struct TableWorld<'a> {
     width: u16,
     /// area height
     height: u16,
-    /// world window offset
-    ix_offset: usize,
-    /// world window offset
-    iy_offset: usize,
 }
 
 impl<'a> TableWorld<'a> {
     fn new(app: &'a App, width: u16, height: u16) -> Self {
-        Self {
-            app,
-            width,
-            height,
-            ix_offset: 0,
-            iy_offset: 0,
-        }
+        Self { app, width, height }
     }
 
     fn make_rows(&self) -> Vec<Row> {
         let mut rows: Vec<Row> = Vec::with_capacity(self.height as usize);
-        for iy in self.iy_offset..min(self.app.ny, self.iy_offset + self.height as usize) {
+        for iy in
+            self.app.rendering_iy..min(self.app.ny, self.app.rendering_iy + self.height as usize)
+        {
             let mut row: Vec<_> = Vec::with_capacity(self.width as usize);
-            for ix in self.ix_offset..min(self.app.nx, self.ix_offset + self.width as usize) {
+            for ix in
+                self.app.rendering_ix..min(self.app.nx, self.app.rendering_ix + self.width as usize)
+            {
                 row.push(match self.app.world.cell(ix, iy) {
                     CELL_ALIVE => Cell::from(" ").style(Style::default().bg(Color::Blue)),
                     CELL_DEAD => Cell::from(" ").style(Style::default()),

@@ -22,6 +22,22 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         KeyCode::Char('r') => {
             app.reset()?;
         }
+        // Pan rendering area to left
+        KeyCode::Left => {
+            app.rendering_ix = app.rendering_ix.saturating_sub(1);
+        }
+        // Pan rendering area to right
+        KeyCode::Right => {
+            app.rendering_ix = app.rendering_ix.saturating_add(1);
+        }
+        // Pan rendering area to left
+        KeyCode::Up => {
+            app.rendering_iy = app.rendering_iy.saturating_sub(1);
+        }
+        // Pan rendering area to right
+        KeyCode::Down => {
+            app.rendering_iy = app.rendering_iy.saturating_add(1);
+        }
         // Other handlers you could add here.
         _ => {}
     }
