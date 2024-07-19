@@ -50,7 +50,7 @@ impl Default for App {
         let (nx, ny) = (120, 60);
         let alive_prob = 0.2;
         let cells = random_cells(nx, ny, alive_prob);
-        let world = World::new(nx, ny, cells).expect("invalid size!");
+        let world = World::new(nx, ny, &cells).expect("invalid size!");
         Self {
             alive_prob,
             gen: 0,
@@ -95,7 +95,7 @@ impl App {
     pub fn reset(&mut self) -> AppResult<()> {
         if self.can_reset() {
             let cells = random_cells(self.nx, self.ny, self.alive_prob);
-            self.world = World::new(self.nx, self.ny, cells)?;
+            self.world = World::new(self.nx, self.ny, &cells)?;
             self.gen = 0;
             self.rendering_ix = 0;
             self.rendering_iy = 0;

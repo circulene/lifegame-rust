@@ -32,14 +32,14 @@ pub struct World {
 
 impl World {
     /// Create a new world
-    pub fn new(nx: usize, ny: usize, cells: Vec<Cell>) -> Result<World> {
+    pub fn new(nx: usize, ny: usize, cells: &[Cell]) -> Result<World> {
         if cells.len() != nx * ny {
             return Err(Error::msg("invalid cell size."));
         }
         Ok(World {
             nx,
             ny,
-            cells: to_bitvec(&cells),
+            cells: to_bitvec(cells),
             border: Plane,
         })
     }
@@ -140,13 +140,13 @@ mod tests {
 
     #[test]
     fn test_world_new() {
-        let space = World::new(2, 2, vec![CELL_ALIVE]);
+        let space = World::new(2, 2, &[CELL_ALIVE]);
         assert!(space.is_err());
 
-        let space = World::new(2, 2, vec![CELL_ALIVE; 5]);
+        let space = World::new(2, 2, &[CELL_ALIVE; 5]);
         assert!(space.is_err());
 
-        let space = World::new(2, 2, vec![CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]);
+        let space = World::new(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]);
         assert!(space.is_ok());
         assert_eq!(
             &space.unwrap().cells,
@@ -170,7 +170,7 @@ mod tests {
         let world = World::new(
             2,
             2,
-            [[CELL_ALIVE, CELL_ALIVE], [CELL_ALIVE, CELL_ALIVE]].concat(),
+            &[[CELL_ALIVE, CELL_ALIVE], [CELL_ALIVE, CELL_ALIVE]].concat(),
         )?;
         assert_eq!(world.get_cell_with_border(-1, -1), CELL_DEAD);
         assert_eq!(world.get_cell_with_border(-1, 0), CELL_DEAD);
@@ -182,7 +182,7 @@ mod tests {
         let mut world = World::new(
             2,
             2,
-            [[CELL_ALIVE, CELL_DEAD], [CELL_DEAD, CELL_ALIVE]].concat(),
+            &[[CELL_ALIVE, CELL_DEAD], [CELL_DEAD, CELL_ALIVE]].concat(),
         )?;
         world.border(Torus);
         assert_eq!(world.get_cell_with_border(-1, -1), CELL_ALIVE);
@@ -199,7 +199,7 @@ mod tests {
         let mut space = World::new(
             3,
             3,
-            [
+            &[
                 [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
                 [CELL_ALIVE, CELL_DEAD, CELL_DEAD],
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
@@ -226,7 +226,7 @@ mod tests {
         let mut space = World::new(
             4,
             4,
-            [
+            &[
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
                 [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
                 [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
@@ -255,7 +255,7 @@ mod tests {
         let mut space = World::new(
             3,
             3,
-            [
+            &[
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
                 [CELL_DEAD, CELL_ALIVE, CELL_ALIVE],
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
@@ -282,7 +282,7 @@ mod tests {
         let mut space = World::new(
             3,
             3,
-            [
+            &[
                 [CELL_ALIVE, CELL_ALIVE, CELL_ALIVE],
                 [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
                 [CELL_DEAD, CELL_DEAD, CELL_DEAD],
