@@ -12,6 +12,7 @@ pub enum WorldBound {
     Torus,
 }
 
+#[inline]
 fn get_index_with_cyclic_bound(ix: isize, bound: isize) -> isize {
     if ix < 0 {
         ((ix + bound) % bound).abs()
@@ -48,10 +49,12 @@ impl World {
         self.border = border;
     }
 
+    #[inline]
     fn bit_index(&self, ix: usize, iy: usize) -> usize {
         iy * self.nx + ix
     }
 
+    #[inline]
     pub fn cell(&self, ix: usize, iy: usize) -> Cell {
         self.cells[self.bit_index(ix, iy)]
     }
@@ -61,29 +64,8 @@ impl World {
         for iy in 0..self.ny {
             for ix in 0..self.nx {
                 let cell = self.cell(ix, iy);
-                let num_alive_neighbours = self.neighbours(ix, iy).iter().filter(|x| *x).count();
-                let next = match cell {
-                    CELL_DEAD => {
-                        if num_alive_neighbours == 3 {
-                            // born
-                            CELL_ALIVE
-                        } else {
-                            CELL_DEAD
-                        }
-                    }
-                    CELL_ALIVE => {
-                        if num_alive_neighbours <= 1 {
-                            // underpopulated
-                            CELL_DEAD
-                        } else if num_alive_neighbours == 2 || num_alive_neighbours == 3 {
-                            // survive
-                            CELL_ALIVE
-                        } else {
-                            // overpopulated
-                            CELL_DEAD
-                        }
-                    }
-                };
+                let num_alive_neighbours = self.count_alive_neighbours(ix, iy);
+                let next = num_alive_neighbours == 3 || (num_alive_neighbours == 2 && cell);
                 next_cells.set(self.bit_index(ix, iy), next);
             }
         }
@@ -110,19 +92,17 @@ impl World {
 
     /// get bitmap representing Moore neighbours in following order.
     /// [MSB] SE S SW E W NE N NW [LSB]
-    fn neighbours(&self, ix: usize, iy: usize) -> BitVec {
+    #[inline]
+    fn count_alive_neighbours(&self, ix: usize, iy: usize) -> u8 {
         let (ix, iy) = (ix as isize, iy as isize);
-        let bitmap: BitVec = to_bitvec(&[
-            self.get_cell_with_border(ix - 1, iy - 1), // NW
-            self.get_cell_with_border(ix, iy - 1),     // N
-            self.get_cell_with_border(ix + 1, iy - 1), // NE
-            self.get_cell_with_border(ix - 1, iy),     // W
-            self.get_cell_with_border(ix + 1, iy),     // E
-            self.get_cell_with_border(ix - 1, iy + 1), // SW
-            self.get_cell_with_border(ix, iy + 1),     // S
-            self.get_cell_with_border(ix + 1, iy + 1), // SE
-        ]);
-        bitmap
+        self.get_cell_with_border(ix - 1, iy - 1) as u8 // NW
+            + self.get_cell_with_border(ix, iy - 1) as u8     // N
+            + self.get_cell_with_border(ix + 1, iy - 1) as u8 // NE
+            + self.get_cell_with_border(ix - 1, iy) as u8    // W
+            + self.get_cell_with_border(ix + 1, iy) as u8    // E
+            + self.get_cell_with_border(ix - 1, iy + 1) as u8 // SW
+            + self.get_cell_with_border(ix, iy + 1) as u8     // S
+            + self.get_cell_with_border(ix + 1, iy + 1) as u8 // SE
     }
 }
 
