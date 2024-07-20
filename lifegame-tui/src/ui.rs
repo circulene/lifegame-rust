@@ -64,7 +64,7 @@ impl<'a> TableWorld<'a> {
             for ix in
                 self.app.rendering_ix..min(self.app.nx, self.app.rendering_ix + self.width as usize)
             {
-                row.push(match self.app.world.get_present_cell(ix + 1, iy + 1) {
+                row.push(match self.app.world.get_present_cell(ix, iy) {
                     CELL_ALIVE => Cell::from(" ").style(Style::default().bg(Color::Blue)),
                     CELL_DEAD => Cell::from(" ").style(Style::default()),
                 });

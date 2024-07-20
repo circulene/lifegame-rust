@@ -1,17 +1,16 @@
 use std::fmt::Debug;
 
 use anyhow::{Error, Result};
-use bit_vec::BitVec;
 
 pub type Cell = bool;
-pub const CELL_DEAD: bool = false;
-pub const CELL_ALIVE: bool = true;
+pub const CELL_DEAD: Cell = false;
+pub const CELL_ALIVE: Cell = true;
 
 #[derive(Debug)]
 pub struct World {
     nx: usize,
     ny: usize,
-    cells: [BitVec; 2],
+    cells: [Vec<Cell>; 2],
     present: usize,
     generation: usize,
 }
@@ -22,13 +21,13 @@ impl World {
         if cells.len() != nx * ny {
             return Err(Error::msg("invalid cell size."));
         }
-        let nsize = (nx + 2) * (ny + 2);
+        let nsize = nx * ny;
         Ok(World {
             nx,
             ny,
             cells: [
-                to_bitvec(nx, ny, cells),
-                BitVec::from_elem(nsize, CELL_DEAD),
+                process_boundary_cells(nx, ny, cells),
+                vec![CELL_DEAD; nsize],
             ],
             present: 0,
             generation: 0,
@@ -37,8 +36,8 @@ impl World {
 
     pub fn next(&mut self) {
         let next = (self.generation + 1) % 2;
-        for iy in 1..(self.ny + 1) {
-            for ix in 1..(self.nx + 1) {
+        for iy in 1..(self.ny - 1) {
+            for ix in 1..(self.nx - 1) {
                 let present_cell = self.get_cell(self.present, ix, iy);
                 let num_alive_neighbours = self.count_alive_neighbours(self.present, ix, iy);
                 let next_cell =
@@ -56,18 +55,13 @@ impl World {
     }
 
     #[inline]
-    fn cell_index(&self, ix: usize, iy: usize) -> usize {
-        (self.nx + 2) * iy + ix
-    }
-
-    #[inline]
     fn get_cell(&self, index: usize, ix: usize, iy: usize) -> Cell {
-        self.cells[index][self.cell_index(ix, iy)]
+        self.cells[index][self.nx * iy + ix]
     }
 
     #[inline]
     fn update_cell(&mut self, index: usize, ix: usize, iy: usize, cell: Cell) {
-        self.cells[index].set(self.cell_index(ix, iy), cell);
+        self.cells[index][self.nx * iy + ix] = cell;
     }
 
     #[inline]
@@ -83,19 +77,29 @@ impl World {
     }
 }
 
-fn to_bitvec(nx: usize, ny: usize, bits: &[bool]) -> BitVec {
-    let mut bitvec = BitVec::from_elem((nx + 2) * (ny + 2), CELL_DEAD);
-    for iy in 1..(ny + 1) {
-        for ix in 1..(nx + 1) {
-            bitvec.set((nx + 2) * iy + ix, bits[nx * (iy - 1) + ix - 1]);
+fn process_boundary_cells(nx: usize, ny: usize, cells: &[Cell]) -> Vec<Cell> {
+    let mut processed_cells = vec![CELL_DEAD; nx * ny];
+    for iy in 1..(ny - 1) {
+        for ix in 1..(nx - 1) {
+            processed_cells[nx * iy + ix] = cells[nx * iy + ix];
         }
     }
-    bitvec
+    processed_cells
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn expand_boundary(nx: usize, ny: usize, cells: &[Cell]) -> Vec<Cell> {
+        let mut result = vec![CELL_DEAD; (nx + 2) * (ny + 2)];
+        for iy in 1..(ny + 1) {
+            for ix in 1..(nx + 1) {
+                result[(nx + 2) * iy + ix] = cells[nx * (iy - 1) + ix - 1];
+            }
+        }
+        result
+    }
 
     #[test]
     fn test_world_new() {
@@ -105,11 +109,15 @@ mod tests {
         let space = World::new(2, 2, &[CELL_ALIVE; 5]);
         assert!(space.is_err());
 
-        let space = World::new(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]);
+        let space = World::new(
+            4,
+            4,
+            &expand_boundary(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]),
+        );
         assert!(space.is_ok());
         assert_eq!(
             &space.unwrap().cells[0],
-            &to_bitvec(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD])
+            &expand_boundary(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD])
         );
     }
 
@@ -117,9 +125,13 @@ mod tests {
     fn test_neighbour() -> Result<()> {
         // plane
         let world = World::new(
-            2,
-            2,
-            &[[CELL_ALIVE, CELL_ALIVE], [CELL_ALIVE, CELL_ALIVE]].concat(),
+            4,
+            4,
+            &expand_boundary(
+                2,
+                2,
+                &[[CELL_ALIVE, CELL_ALIVE], [CELL_ALIVE, CELL_ALIVE]].concat(),
+            ),
         )?;
         assert_eq!(world.get_present_cell(0, 0), CELL_DEAD);
         assert_eq!(world.get_present_cell(0, 1), CELL_DEAD);
@@ -133,20 +145,24 @@ mod tests {
     #[test]
     fn rule_born() {
         let mut space = World::new(
-            3,
-            3,
-            &[
-                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_ALIVE, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat(),
+            5,
+            5,
+            &expand_boundary(
+                3,
+                3,
+                &[
+                    [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_ALIVE, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat(),
+            ),
         )
         .unwrap();
         space.next();
         assert_eq!(
             &space.cells[space.present],
-            &to_bitvec(
+            &expand_boundary(
                 3,
                 3,
                 &[
@@ -162,21 +178,25 @@ mod tests {
     #[test]
     fn rule_survive() {
         let mut space = World::new(
-            4,
-            4,
-            &[
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat(),
+            6,
+            6,
+            &expand_boundary(
+                4,
+                4,
+                &[
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat(),
+            ),
         )
         .unwrap();
         space.next();
         assert_eq!(
             &space.cells[space.present],
-            &to_bitvec(
+            &expand_boundary(
                 4,
                 4,
                 &[
@@ -193,20 +213,24 @@ mod tests {
     #[test]
     fn rule_dead_with_underpopulated() {
         let mut space = World::new(
-            3,
-            3,
-            &[
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-                [CELL_DEAD, CELL_ALIVE, CELL_ALIVE],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat(),
+            5,
+            5,
+            &expand_boundary(
+                3,
+                3,
+                &[
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                    [CELL_DEAD, CELL_ALIVE, CELL_ALIVE],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat(),
+            ),
         )
         .unwrap();
         space.next();
         assert_eq!(
             &space.cells[space.present],
-            &to_bitvec(
+            &expand_boundary(
                 3,
                 3,
                 &[
@@ -222,20 +246,24 @@ mod tests {
     #[test]
     fn rule_dead_with_overpopulated() {
         let mut space = World::new(
-            3,
-            3,
-            &[
-                [CELL_ALIVE, CELL_ALIVE, CELL_ALIVE],
-                [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
-                [CELL_DEAD, CELL_DEAD, CELL_DEAD],
-            ]
-            .concat(),
+            5,
+            5,
+            &expand_boundary(
+                3,
+                3,
+                &[
+                    [CELL_ALIVE, CELL_ALIVE, CELL_ALIVE],
+                    [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
+                    [CELL_DEAD, CELL_DEAD, CELL_DEAD],
+                ]
+                .concat(),
+            ),
         )
         .unwrap();
         space.next();
         assert_eq!(
             &space.cells[space.present],
-            &to_bitvec(
+            &expand_boundary(
                 3,
                 3,
                 &[
