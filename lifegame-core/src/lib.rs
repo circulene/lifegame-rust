@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use anyhow::{Error, Result};
 use bit_vec::BitVec;
 use WorldBound::{Plane, Torus};
@@ -24,11 +26,65 @@ fn get_index_with_cyclic_bound(ix: isize, bound: isize) -> isize {
 }
 
 #[derive(Debug)]
-pub struct World {
+struct WorldConfig {
     nx: usize,
     ny: usize,
     cells: BitVec,
-    border: WorldBound,
+}
+
+trait CellLocatable: Debug {
+    #[inline]
+    fn get_cell_index(&self, config: &WorldConfig, ix: usize, iy: usize) -> usize {
+        iy * config.nx + ix
+    }
+
+    /// get cell at exact position
+    #[inline]
+    fn get_cell(&self, config: &WorldConfig, ix: usize, iy: usize) -> Cell {
+        config.cells[self.get_cell_index(config, ix, iy)]
+    }
+
+    /// get neighbour cell. cell index (ix, iy) could be negative or larger than world.
+    fn get_neighbour_cell(&self, config: &WorldConfig, ix: isize, iy: isize) -> Cell;
+}
+
+#[derive(Debug)]
+struct PlaneBoundedCellLocator {}
+
+impl CellLocatable for PlaneBoundedCellLocator {
+    fn get_neighbour_cell(&self, config: &WorldConfig, ix: isize, iy: isize) -> Cell {
+        if ix < 0 || iy < 0 || ix >= config.nx as isize || iy >= config.ny as isize {
+            CELL_DEAD
+        } else {
+            self.get_cell(config, ix as usize, iy as usize)
+        }
+    }
+}
+
+#[derive(Debug)]
+struct TorusBoundedCellLocator {}
+
+impl CellLocatable for TorusBoundedCellLocator {
+    fn get_neighbour_cell(&self, config: &WorldConfig, ix: isize, iy: isize) -> Cell {
+        self.get_cell(
+            config,
+            get_index_with_cyclic_bound(ix, config.nx as isize) as usize,
+            get_index_with_cyclic_bound(iy, config.ny as isize) as usize,
+        )
+    }
+}
+
+fn make_cell_identifier(wb: WorldBound) -> Box<dyn CellLocatable> {
+    match wb {
+        Torus => Box::new(TorusBoundedCellLocator {}),
+        Plane => Box::new(PlaneBoundedCellLocator {}),
+    }
+}
+
+#[derive(Debug)]
+pub struct World {
+    config: WorldConfig,
+    locator: Box<dyn CellLocatable>,
 }
 
 impl World {
@@ -38,56 +94,46 @@ impl World {
             return Err(Error::msg("invalid cell size."));
         }
         Ok(World {
-            nx,
-            ny,
-            cells: to_bitvec(cells),
-            border: Plane,
+            config: WorldConfig {
+                nx,
+                ny,
+                cells: to_bitvec(cells),
+            },
+            locator: make_cell_identifier(Plane),
         })
     }
 
-    pub fn border(&mut self, border: WorldBound) {
-        self.border = border;
-    }
-
-    #[inline]
-    fn bit_index(&self, ix: usize, iy: usize) -> usize {
-        iy * self.nx + ix
-    }
-
-    #[inline]
-    pub fn cell(&self, ix: usize, iy: usize) -> Cell {
-        self.cells[self.bit_index(ix, iy)]
+    pub fn set_bound(&mut self, wb: WorldBound) {
+        self.locator = make_cell_identifier(wb);
     }
 
     pub fn next(&mut self) {
-        let mut next_cells = BitVec::from_elem(self.cells.len(), false);
-        for iy in 0..self.ny {
-            for ix in 0..self.nx {
-                let cell = self.cell(ix, iy);
+        let mut next_cells = BitVec::from_elem(self.config.cells.len(), false);
+        for iy in 0..self.config.ny {
+            for ix in 0..self.config.nx {
+                let cell = self.get_cell(ix, iy);
                 let num_alive_neighbours = self.count_alive_neighbours(ix, iy);
                 let next = num_alive_neighbours == 3 || (num_alive_neighbours == 2 && cell);
-                next_cells.set(self.bit_index(ix, iy), next);
+                next_cells.set(self.get_cell_index(ix, iy), next);
             }
         }
-        self.cells = next_cells;
+        self.config.cells = next_cells;
+    }
+
+    #[inline]
+    fn get_cell_index(&self, ix: usize, iy: usize) -> usize {
+        self.locator.get_cell_index(&self.config, ix, iy)
+    }
+
+    #[inline]
+    pub fn get_cell(&self, ix: usize, iy: usize) -> Cell {
+        self.locator.get_cell(&self.config, ix, iy)
     }
 
     /// get cell with border consideration
-    fn get_cell_with_border(&self, ix: isize, iy: isize) -> bool {
-        let (nx, ny) = (self.nx as isize, self.ny as isize);
-        match self.border {
-            Plane => {
-                if ix < 0 || iy < 0 || ix >= nx || iy >= ny {
-                    CELL_DEAD
-                } else {
-                    self.cell(ix as usize, iy as usize)
-                }
-            }
-            Torus => self.cell(
-                get_index_with_cyclic_bound(ix, nx) as usize,
-                get_index_with_cyclic_bound(iy, ny) as usize,
-            ),
-        }
+    #[inline]
+    fn get_neighbour_cell(&self, ix: isize, iy: isize) -> Cell {
+        self.locator.get_neighbour_cell(&self.config, ix, iy)
     }
 
     /// get bitmap representing Moore neighbours in following order.
@@ -95,14 +141,14 @@ impl World {
     #[inline]
     fn count_alive_neighbours(&self, ix: usize, iy: usize) -> u8 {
         let (ix, iy) = (ix as isize, iy as isize);
-        self.get_cell_with_border(ix - 1, iy - 1) as u8 // NW
-            + self.get_cell_with_border(ix, iy - 1) as u8     // N
-            + self.get_cell_with_border(ix + 1, iy - 1) as u8 // NE
-            + self.get_cell_with_border(ix - 1, iy) as u8    // W
-            + self.get_cell_with_border(ix + 1, iy) as u8    // E
-            + self.get_cell_with_border(ix - 1, iy + 1) as u8 // SW
-            + self.get_cell_with_border(ix, iy + 1) as u8     // S
-            + self.get_cell_with_border(ix + 1, iy + 1) as u8 // SE
+        self.get_neighbour_cell(ix - 1, iy - 1) as u8 // NW
+            + self.get_neighbour_cell(ix, iy - 1) as u8     // N
+            + self.get_neighbour_cell(ix + 1, iy - 1) as u8 // NE
+            + self.get_neighbour_cell(ix - 1, iy) as u8    // W
+            + self.get_neighbour_cell(ix + 1, iy) as u8    // E
+            + self.get_neighbour_cell(ix - 1, iy + 1) as u8 // SW
+            + self.get_neighbour_cell(ix, iy + 1) as u8     // S
+            + self.get_neighbour_cell(ix + 1, iy + 1) as u8 // SE
     }
 }
 
@@ -129,7 +175,7 @@ mod tests {
         let space = World::new(2, 2, &[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD]);
         assert!(space.is_ok());
         assert_eq!(
-            &space.unwrap().cells,
+            &space.unwrap().config.cells,
             &to_bitvec(&[CELL_ALIVE, CELL_DEAD, CELL_DEAD, CELL_DEAD])
         );
     }
@@ -152,11 +198,11 @@ mod tests {
             2,
             &[[CELL_ALIVE, CELL_ALIVE], [CELL_ALIVE, CELL_ALIVE]].concat(),
         )?;
-        assert_eq!(world.get_cell_with_border(-1, -1), CELL_DEAD);
-        assert_eq!(world.get_cell_with_border(-1, 0), CELL_DEAD);
-        assert_eq!(world.get_cell_with_border(0, 0), CELL_ALIVE);
-        assert_eq!(world.get_cell_with_border(1, 1), CELL_ALIVE);
-        assert_eq!(world.get_cell_with_border(2, 2), CELL_DEAD);
+        assert_eq!(world.get_neighbour_cell(-1, -1), CELL_DEAD);
+        assert_eq!(world.get_neighbour_cell(-1, 0), CELL_DEAD);
+        assert_eq!(world.get_neighbour_cell(0, 0), CELL_ALIVE);
+        assert_eq!(world.get_neighbour_cell(1, 1), CELL_ALIVE);
+        assert_eq!(world.get_neighbour_cell(2, 2), CELL_DEAD);
 
         // torus
         let mut world = World::new(
@@ -164,12 +210,12 @@ mod tests {
             2,
             &[[CELL_ALIVE, CELL_DEAD], [CELL_DEAD, CELL_ALIVE]].concat(),
         )?;
-        world.border(Torus);
-        assert_eq!(world.get_cell_with_border(-1, -1), CELL_ALIVE);
-        assert_eq!(world.get_cell_with_border(-1, 0), CELL_DEAD);
-        assert_eq!(world.get_cell_with_border(0, 0), CELL_ALIVE);
-        assert_eq!(world.get_cell_with_border(1, 1), CELL_ALIVE);
-        assert_eq!(world.get_cell_with_border(2, 2), CELL_ALIVE);
+        world.set_bound(Torus);
+        assert_eq!(world.get_neighbour_cell(-1, -1), CELL_ALIVE);
+        assert_eq!(world.get_neighbour_cell(-1, 0), CELL_DEAD);
+        assert_eq!(world.get_neighbour_cell(0, 0), CELL_ALIVE);
+        assert_eq!(world.get_neighbour_cell(1, 1), CELL_ALIVE);
+        assert_eq!(world.get_neighbour_cell(2, 2), CELL_ALIVE);
 
         Ok(())
     }
@@ -189,7 +235,7 @@ mod tests {
         .unwrap();
         space.next();
         assert_eq!(
-            &space.cells,
+            &space.config.cells,
             &to_bitvec(
                 &[
                     [CELL_ALIVE, CELL_ALIVE, CELL_DEAD],
@@ -217,7 +263,7 @@ mod tests {
         .unwrap();
         space.next();
         assert_eq!(
-            &space.cells,
+            &space.config.cells,
             &to_bitvec(
                 &[
                     [CELL_DEAD, CELL_DEAD, CELL_DEAD, CELL_DEAD],
@@ -245,7 +291,7 @@ mod tests {
         .unwrap();
         space.next();
         assert_eq!(
-            &space.cells,
+            &space.config.cells,
             &to_bitvec(
                 &[
                     [CELL_DEAD, CELL_DEAD, CELL_DEAD],
@@ -272,7 +318,7 @@ mod tests {
         .unwrap();
         space.next();
         assert_eq!(
-            &space.cells,
+            &space.config.cells,
             &to_bitvec(
                 &[
                     [CELL_ALIVE, CELL_DEAD, CELL_ALIVE],
