@@ -2,9 +2,9 @@ use std::fmt::Debug;
 
 use anyhow::{Error, Result};
 
-pub type Cell = bool;
-pub const CELL_DEAD: Cell = false;
-pub const CELL_ALIVE: Cell = true;
+pub type Cell = u8;
+pub const CELL_DEAD: Cell = 0;
+pub const CELL_ALIVE: Cell = 1;
 
 #[derive(Debug)]
 pub struct World {
@@ -40,8 +40,9 @@ impl World {
             for ix in 1..(self.nx - 1) {
                 let present_cell = self.get_cell(self.present, ix, iy);
                 let num_alive_neighbours = self.count_alive_neighbours(self.present, ix, iy);
-                let next_cell =
-                    num_alive_neighbours == 3 || (num_alive_neighbours == 2 && present_cell);
+                let next_cell = (num_alive_neighbours == 3
+                    || (num_alive_neighbours == 2 && present_cell == CELL_ALIVE))
+                    as u8;
                 self.update_cell(next, ix, iy, next_cell);
             }
         }
@@ -66,14 +67,14 @@ impl World {
 
     #[inline]
     fn count_alive_neighbours(&self, index: usize, ix: usize, iy: usize) -> u8 {
-        self.get_cell(index, ix - 1, iy - 1) as u8 // NW
-            + self.get_cell(index, ix, iy - 1)  as u8    // N
-            + self.get_cell(index, ix + 1, iy - 1) as u8 // NE
-            + self.get_cell(index, ix - 1, iy) as u8    // W
-            + self.get_cell(index, ix + 1, iy) as u8    // E
-            + self.get_cell(index, ix - 1, iy + 1) as u8 // SW
-            + self.get_cell(index, ix, iy + 1) as u8     // S
-            + self.get_cell(index, ix + 1, iy + 1) as u8 // SE
+        self.get_cell(index, ix - 1, iy - 1) // NW
+            + self.get_cell(index, ix, iy - 1)    // N
+            + self.get_cell(index, ix + 1, iy - 1) // NE
+            + self.get_cell(index, ix - 1, iy)    // W
+            + self.get_cell(index, ix + 1, iy)    // E
+            + self.get_cell(index, ix - 1, iy + 1) // SW
+            + self.get_cell(index, ix, iy + 1)     // S
+            + self.get_cell(index, ix + 1, iy + 1) // SE
     }
 }
 

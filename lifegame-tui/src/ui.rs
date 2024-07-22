@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use lifegame_core::{CELL_ALIVE, CELL_DEAD};
+use lifegame_core::CELL_ALIVE;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -66,7 +66,7 @@ impl<'a> TableWorld<'a> {
             {
                 row.push(match self.app.world.get_present_cell(ix, iy) {
                     CELL_ALIVE => Cell::from(" ").style(Style::default().bg(Color::Blue)),
-                    CELL_DEAD => Cell::from(" ").style(Style::default()),
+                    _ => Cell::from(" ").style(Style::default()),
                 });
             }
             rows.push(Row::new(row));
