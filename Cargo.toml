@@ -1,4 +1,4 @@
 [workspace]
 
-members = ["lifegame-core", "lifegame-tui"]
+members = ["lifegame-core", "lifegame-tui", "lifegame-gui/src-tauri"]
 resolver = "2"
